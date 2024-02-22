@@ -15,11 +15,13 @@ def load_data(dataset_name):
     # Remove self-loop edges
     edges = [[u, v] if u < v else [v, u] for u, v in edges if u != v]
 
-    nodes = {node for e in edges for node in e}
+    # nodes = {node for e in edges for node in e}  #ORIGINAL VERSION
+    nodes = {node for com in communties for node in com}  # The original algorithm only considers nodes that have edges
     mapping = {u: i for i, u in enumerate(sorted(nodes))}
 
     edges = [[mapping[u], mapping[v]] for u, v in edges]
     communties = [[mapping[node] for node in com] for com in communties]
+    nodes = {mapping[node] for node in nodes}  # The problem with my datasets is that nodes ids are not consecutive
 
     num_node, num_edges, num_comm = len(nodes), len(edges), len(communties)
     print(f"[{dataset_name.upper()}] #Nodes {num_node}, #Edges {num_edges}, #Communities {num_comm}")

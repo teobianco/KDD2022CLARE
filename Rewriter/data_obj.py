@@ -126,7 +126,10 @@ class DataProcessor(object):
             nodes = sorted(list(subgraph.nodes()))
             node2degree = [degree[node] for node in nodes]
             degree = np.array(node2degree)
-            degree = degree / np.sum(degree, axis=0)
+            if np.all(degree == 0):  # Added this condition to manage situations where all degrees are 0
+                degree = 1 / len(degree) * np.ones(len(degree))
+            else:
+                degree = degree / np.sum(degree, axis=0)
             root_node = np.random.choice(nodes, p=degree.ravel())
 
             # Step3, extract the root-node k-ego-net and outer boundary
