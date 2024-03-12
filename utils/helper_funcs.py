@@ -4,14 +4,35 @@ import torch
 from torch_geometric.utils import k_hop_subgraph, subgraph
 
 
-def split_communities(communities, n_train, n_val=0):
+def split_communities(communities, n_train, n_val=0, already_train__test=False, dataset='amazon', time=0, mapping=None):
     r"""Randomly split all communities into train set, validation set, and test set"""
-    idxes = list(range(len(communities)))
-    np.random.shuffle(idxes)
+    if already_train__test:
+        train_val_comms = []
+        test_comms = []
+        train_path = f'./dataset/{dataset}/time_{time}/train_set.txt'
+        test_path = f'./dataset/{dataset}/time_{time}/test_set.txt'
+        with open(train_path, 'r') as file:
+            for line in file:
+                comm = list(map(int, line.split()))
+                comm = [mapping[node] for node in comm]
+                train_val_comms.append(comm)
+        with open(test_path, 'r') as file:
+            for line in file:
+                comm = list(map(int, line.split()))
+                comm = [mapping[node] for node in comm]
+                test_comms.append(comm)
+        # Extract validation set from train set
+        idxes = list(range(len(train_val_comms)))
+        np.random.shuffle(idxes)
+        val_comms = [train_val_comms[idx] for idx in idxes[:n_val]]
+        train_comms = [train_val_comms[idx] for idx in idxes[n_val:]]
+    else:
+        idxes = list(range(len(communities)))
+        np.random.shuffle(idxes)
 
-    train_comms = [communities[idx] for idx in idxes[:n_train]]
-    val_comms = [communities[idx] for idx in idxes[n_train:n_train + n_val]]
-    test_comms = [communities[idx] for idx in idxes[n_train + n_val:]]
+        train_comms = [communities[idx] for idx in idxes[:n_train]]
+        val_comms = [communities[idx] for idx in idxes[n_train:n_train + n_val]]
+        test_comms = [communities[idx] for idx in idxes[n_train + n_val:]]
 
     return train_comms, val_comms, test_comms
 

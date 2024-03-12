@@ -17,11 +17,17 @@ def compare_comm(pred_comm: Union[List, Set],
     return p, r, f, j
 
 
-def eval_scores(pred_comms, true_comms, tmp_print=False):
+def eval_scores(pred_comms, true_comms, train_comms, tmp_print=False):
+    # Transform train_comms to a set
+    train_set = {node for com in train_comms for node in com}
+    # Erase train_comms nodes from pred_comms
+    for comm in pred_comms:
+        for node in comm:
+            if node in train_set:
+                comm.remove(node)
     # 4 columns for precision, recall, f1, jaccard
     pred_scores = np.zeros((len(pred_comms), 4))
     truth_scores = np.zeros((len(true_comms), 4))
-
     for i, pred_comm in enumerate(pred_comms):
         np.max([compare_comm(pred_comm, true_comms[j])
                 for j in range(len(true_comms))], 0, out=pred_scores[i])
@@ -48,7 +54,7 @@ def eval_scores(pred_comms, true_comms, tmp_print=False):
 
     if tmp_print:
         print(f"AvgF1: {mean_score_all[2]:.4f} AvgJaccard: {mean_score_all[3]:.4f} NMI: {nmi_score:.4f} "
-              f"Detect percent: {percent:.4f}")
+              f"Detect percent: {percent:.4f}\n")
     return round(mean_score_all[2], 4), round(mean_score_all[3], 4), round(nmi_score, 4)
 
 

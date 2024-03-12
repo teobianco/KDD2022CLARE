@@ -41,6 +41,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_pred", type=int, help="pred size", default=1000)
     parser.add_argument("--num_train", type=int, help="pred size", default=90)
     parser.add_argument("--num_val", type=int, help="pred size", default=10)
+    parser.add_argument("--already_train_test", type=bool, help="If the train and test communities are already defined", default=True)
 
     # Community Locator related
     #   --GNNEncoder Setting
@@ -73,45 +74,66 @@ if __name__ == "__main__":
     args = parser.parse_args()
     seed_all(args.seed)
 
-    if not os.path.exists(f"ckpts/{args.dataset}"):
-        os.mkdir(f"ckpts/{args.dataset}")
-    args.writer_dir = f"ckpts/{args.dataset}/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    os.mkdir(args.writer_dir)
-    args.comm_max_size = 20 if args.dataset.startswith("lj") else 12
-
     print('= ' * 20)
     print('##  Starting Time:', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
     print(args)
 
-    ##########################################################
-    ################### Step 1 Load Data #####################
-    ##########################################################
-    num_node, num_edge, num_community, graph_data, nx_graph, communities = prepare_data(args.dataset)
-    print(f"Finish loading data: {graph_data}\n")
-    train_comms, val_comms, test_comms = split_communities(communities, args.num_train, args.num_val)
-    print(f"Split dataset: #Train {len(train_comms)}, #Val {len(val_comms)}, #Test {len(test_comms)}\n")
+    if not os.path.exists(f"ckpts/{args.dataset}"):
+        os.mkdir(f"ckpts/{args.dataset}")
 
-    ##########################################################
-    ################### Step 2 Train Locator##################
-    ##########################################################
-    CommM_obj = CommMatching(args, graph_data, train_comms, val_comms, device=torch.device(args.device))
-    CommM_obj.train()
-    pred_comms = CommM_obj.predict_community(nx_graph, args.comm_max_size)
-    f1, jaccard, onmi = eval_scores(pred_comms, test_comms, tmp_print=True)
-    metrics_string = '_'.join([f'{x:0.4f}' for x in [f1, jaccard, onmi]])
-    write2file(pred_comms, args.writer_dir + "/CommM_" + metrics_string + '.txt')
+    f_list = []
+    j_list = []
+    nmi_list = []
 
-    ##########################################################
-    ################### Step 3 Train Rewriter#################
-    ##########################################################
-    cost_choice = "f1"  # or you can change to "jaccard"
-    feat_mat = CommM_obj.generate_all_node_emb().detach().cpu().numpy()  # all nodes' embedding
-    CommR_obj = CommRewriting(args, nx_graph, feat_mat, train_comms, val_comms, pred_comms, cost_choice)
-    CommR_obj.train()
-    rewrite_comms = CommR_obj.get_rewrite()
-    f1, jaccard, onmi = eval_scores(rewrite_comms, test_comms, tmp_print=True)
-    metrics_string = '_'.join([f'{x:0.4f}' for x in [f1, jaccard, onmi]])
-    write2file(rewrite_comms, args.writer_dir + f"/CommR_{cost_choice}_" + metrics_string + '.txt')
+    time_len = len(os.listdir(f"./dataset/{args.dataset}/"))
+    for time in range(time_len):
+        print(f'## Start Timestep {time} ...')
+        # args.writer_dir = f"ckpts/{args.dataset}/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        args.writer_dir = f"ckpts/{args.dataset}/{time}"
+        os.mkdir(args.writer_dir)
+        args.comm_max_size = 20 if args.dataset.startswith("lj") else 12
 
+        ##########################################################
+        ################### Step 1 Load Data #####################
+        ##########################################################
+        num_node, num_edge, num_community, graph_data, nx_graph, communities, mapping = prepare_data(args.dataset, time)
+        print(f"Finish loading data: {graph_data}\n")
+        train_comms, val_comms, test_comms = split_communities(communities, args.num_train, args.num_val, args.already_train_test, args.dataset, time, mapping)
+        # DEVO SCRIVERE QUELLA NUOVA PENSANDO A COME ESTRARRE VAL_COMMS
+        print(f"Split dataset: #Train {len(train_comms)}, #Val {len(val_comms)}, #Test {len(test_comms)}\n")
+
+        ##########################################################
+        ################### Step 2 Train Locator##################
+        ##########################################################
+        CommM_obj = CommMatching(args, graph_data, train_comms, val_comms, device=torch.device(args.device))
+        CommM_obj.train()
+        pred_comms = CommM_obj.predict_community(nx_graph, args.comm_max_size)
+        f1, jaccard, onmi = eval_scores(pred_comms, test_comms, train_comms, tmp_print=True)
+        metrics_string = '_'.join([f'{x:0.4f}' for x in [f1, jaccard, onmi]])
+        write2file(pred_comms, args.writer_dir + "/CommM_" + metrics_string + '.txt')
+
+        ##########################################################
+        ################### Step 3 Train Rewriter#################
+        ##########################################################
+        cost_choice = "f1"  # or you can change to "jaccard"
+        feat_mat = CommM_obj.generate_all_node_emb().detach().cpu().numpy()  # all nodes' embedding
+        CommR_obj = CommRewriting(args, nx_graph, feat_mat, train_comms, val_comms, pred_comms, cost_choice)
+        CommR_obj.train()
+        rewrite_comms = CommR_obj.get_rewrite()
+        # DA AGGIUNGERE CHE FARE CON LE RIPETIZIONI DEI NODI IN COMUNITà DIVERSE  --> LASCIARE COSì
+        # CAPIRE SE ELIMINARE NODI CHE SONO NEL TRAIN SET  --> FATTO, PROVARE SE FUNZIONA
+        f1, jaccard, onmi = eval_scores(rewrite_comms, test_comms, train_comms, tmp_print=True)
+        f_list.append(f1)
+        j_list.append(jaccard)
+        nmi_list.append(onmi)
+        metrics_string = '_'.join([f'{x:0.4f}' for x in [f1, jaccard, onmi]])
+        write2file(rewrite_comms, args.writer_dir + f"/CommR_{cost_choice}_" + metrics_string + '.txt')
+
+    print(f'Mean F1: {np.mean(f_list)}')
+    print(f'Std F1: {np.std(f_list)}')
+    print(f'Mean Jaccard: {np.mean(j_list)}')
+    print(f'Std Jaccard: {np.std(j_list)}')
+    print(f'Mean ONMI: {np.mean(nmi_list)}')
+    print(f'Std ONMI: {np.std(nmi_list)}')
     print('## Finishing Time:', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
     print('= ' * 20)
