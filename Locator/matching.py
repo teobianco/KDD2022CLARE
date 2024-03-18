@@ -130,7 +130,10 @@ class CommMatching:
         # Step 2 matching
         print(f"\nStart Matching ... ")
         pred_comms, seeds = [], []
-        pred_size = self.args.num_pred
+        if self.args.num_pred >= query_emb.shape[0]:
+            pred_size = self.args.num_pred
+        else:
+            pred_size = query_emb.shape[0] * self.args.multiplier
         single_pred_size = int(pred_size / query_emb.shape[0])
         for i in range(query_emb.shape[0]):
             q_emb = query_emb[i, :]

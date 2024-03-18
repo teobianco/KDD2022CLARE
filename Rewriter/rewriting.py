@@ -132,9 +132,9 @@ class CommRewriting:
 
             # TODO: Validation on val-set and save the best model
             if (epoch + 1) % 20 == 0:
-                f, j, nmi = eval_scores(val_data, self.valid_comms)
+                f, j, nmi = eval_scores(val_data, self.valid_comms, train_comms=None, val_comms=None, validation_flag=True)
                 rewrite_val = self.rewrite_community(valid=True, val_pred=val_data)
-                new_f, new_j, new_nmi = eval_scores(rewrite_val, self.valid_comms, tmp_print=False)
+                new_f, new_j, new_nmi = eval_scores(rewrite_val, self.valid_comms, train_comms=None, val_comms=None, validation_flag=True)
                 if new_f - f > 0 or new_j - j > 0 or new_nmi - nmi > 0:
                     print(f"[Eval-Epoch{epoch+1}] Improve f1 {new_f - f :.04f}, "
                           f"improve jaccard {new_j -j:.04f}, improve new_nmi {new_nmi-nmi:.04f}")

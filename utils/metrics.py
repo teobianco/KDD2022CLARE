@@ -17,14 +17,20 @@ def compare_comm(pred_comm: Union[List, Set],
     return p, r, f, j
 
 
-def eval_scores(pred_comms, true_comms, train_comms, tmp_print=False):
-    # Transform train_comms to a set
-    train_set = {node for com in train_comms for node in com}
-    # Erase train_comms nodes from pred_comms
-    for comm in pred_comms:
-        for node in comm:
-            if node in train_set:
-                comm.remove(node)
+def eval_scores(pred_comms, true_comms, train_comms, val_comms, tmp_print=False, validation_flag=False):
+    if not validation_flag:
+        # Transform train_comms to a set
+        train_set = {node for com in train_comms for node in com}
+        val_set = {node for com in val_comms for node in com}
+        # Create a new set which is union of these one
+        train_val_set = train_set | val_set
+        # Erase train_comms nodes from pred_comms
+        for comm in pred_comms:
+            for node in comm:
+                if node in train_val_set:
+                    comm.remove(node)
+                    if len(comm) == 0:
+                        pred_comms.remove(comm)
     # 4 columns for precision, recall, f1, jaccard
     pred_scores = np.zeros((len(pred_comms), 4))
     truth_scores = np.zeros((len(true_comms), 4))

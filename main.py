@@ -7,6 +7,7 @@ from Rewriter import CommRewriting
 from Locator import CommMatching
 from utils import split_communities, eval_scores, prepare_data
 import os
+from utils.helper_funcs import assign_free_gpus
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
@@ -42,6 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_train", type=int, help="pred size", default=90)
     parser.add_argument("--num_val", type=int, help="pred size", default=10)
     parser.add_argument("--already_train_test", type=bool, help="If the train and test communities are already defined", default=True)
+    parser.add_argument("--multiplier", type=float, help="multiplier", default=1.0)
 
     # Community Locator related
     #   --GNNEncoder Setting
@@ -73,6 +75,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     seed_all(args.seed)
+
+    # If run on GPU, we need to assign free GPUs
+    if args.device == "cuda:0":
+        assign_free_gpus(max_gpus=1)
 
     print('= ' * 20)
     print('##  Starting Time:', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
@@ -108,7 +114,7 @@ if __name__ == "__main__":
         CommM_obj = CommMatching(args, graph_data, train_comms, val_comms, device=torch.device(args.device))
         CommM_obj.train()
         pred_comms = CommM_obj.predict_community(nx_graph, args.comm_max_size)
-        f1, jaccard, onmi = eval_scores(pred_comms, test_comms, train_comms, tmp_print=True)
+        f1, jaccard, onmi = eval_scores(pred_comms, test_comms, train_comms, val_comms, tmp_print=True)
         metrics_string = '_'.join([f'{x:0.4f}' for x in [f1, jaccard, onmi]])
         write2file(pred_comms, args.writer_dir + "/CommM_" + metrics_string + '.txt')
 
@@ -122,7 +128,7 @@ if __name__ == "__main__":
         rewrite_comms = CommR_obj.get_rewrite()
         # DA AGGIUNGERE CHE FARE CON LE RIPETIZIONI DEI NODI IN COMUNITà DIVERSE  --> LASCIARE COSì
         # CAPIRE SE ELIMINARE NODI CHE SONO NEL TRAIN SET  --> FATTO, PROVARE SE FUNZIONA
-        f1, jaccard, onmi = eval_scores(rewrite_comms, test_comms, train_comms, tmp_print=True)
+        f1, jaccard, onmi = eval_scores(rewrite_comms, test_comms, train_comms, val_comms, tmp_print=True)
         f_list.append(f1)
         j_list.append(jaccard)
         nmi_list.append(onmi)
