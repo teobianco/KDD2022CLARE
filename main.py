@@ -96,7 +96,8 @@ if __name__ == "__main__":
         print(f'## Start Timestep {time} ...')
         # args.writer_dir = f"ckpts/{args.dataset}/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         args.writer_dir = f"ckpts/{args.dataset}/{time}"
-        os.mkdir(args.writer_dir)
+        if not os.path.exists(args.writer_dir):
+            os.mkdir(args.writer_dir)
         args.comm_max_size = 20 if args.dataset.startswith("lj") else 12
 
         ##########################################################
