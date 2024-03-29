@@ -9,7 +9,7 @@ from utils import generate_outer_boundary, eval_scores
 
 
 class CommRewriting:
-    def __init__(self, args, graph, feat_mat, train_comms, valid_comms, pred_comms, cost_choice):
+    def __init__(self, args, graph, feat_mat, train_comms, valid_comms, pred_comms, cost_choice, time):
         self.args = args
         self.data_processor = DataProcessor(args, args.dataset, feat_mat, graph, train_comms, valid_comms)
         self.graph = graph
@@ -20,6 +20,7 @@ class CommRewriting:
         self.writer = SummaryWriter(args.writer_dir)
         self.max_step = args.max_step
         self.best_epoch = None
+        self.time = time
 
     def load_net(self, filename=None):
         file = self.args.writer_dir + "/commr.pt" if not filename else filename
@@ -45,6 +46,18 @@ class CommRewriting:
 
         steps, expand_steps, exclude_steps = [], [], []
         total_exclude_rewards, total_expand_rewards = [], []
+
+        #Memory in RL for dynamic graph
+        if self.args.memory:
+            if self.time > 0:
+                path = self.args.writer_dir.rsplit('/', 1)[0] + '/' + str(self.time - 1)
+                # path = self.args.writer_dir[:-1] + str(self.time - 1)
+                if os.path.exists(path + f"/commr_eval_best.pt"):
+                    self.load_net(path + f"/commr_eval_best.pt")
+                    # print(f"Load net from {path + f'/commr_eval_best.pt'} at Epoch{self.best_epoch}")
+                else:
+                    self.load_net(path + f"/commr.pt")
+                    # print(f"Load net from {path + f'/commr.pt'} at Epoch{self.best_epoch}")
 
         best_f, best_j, best_nmi = 0, 0, 0
         for epoch in range(self.args.n_epoch):

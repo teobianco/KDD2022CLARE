@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from Rewriter import CommRewriting
 from Locator import CommMatching
-from utils import split_communities, eval_scores, prepare_data
+from utils import split_communities, eval_scores, prepare_data, count_folders_starting_with_time
 import os
 from utils.helper_funcs import assign_free_gpus
 
@@ -73,6 +73,9 @@ if __name__ == "__main__":
     # Save log
     parser.add_argument("--writer_dir", type=str, help="Summary writer directory", default="")
 
+    # Dynamize RL
+    parser.add_argument("--memory", type=bool, help="In Rewriter keep memory of past timestep in initialization", default=False)
+
     args = parser.parse_args()
     seed_all(args.seed)
 
@@ -91,7 +94,7 @@ if __name__ == "__main__":
     j_list = []
     nmi_list = []
 
-    time_len = len(os.listdir(f"./dataset/{args.dataset}/"))
+    time_len = count_folders_starting_with_time(f"./dataset/{args.dataset}/")
     for time in range(time_len):
         print(f'## Start Timestep {time} ...')
         # args.writer_dir = f"ckpts/{args.dataset}/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -124,7 +127,7 @@ if __name__ == "__main__":
         ##########################################################
         cost_choice = "f1"  # or you can change to "jaccard"
         feat_mat = CommM_obj.generate_all_node_emb().detach().cpu().numpy()  # all nodes' embedding
-        CommR_obj = CommRewriting(args, nx_graph, feat_mat, train_comms, val_comms, pred_comms, cost_choice)
+        CommR_obj = CommRewriting(args, nx_graph, feat_mat, train_comms, val_comms, pred_comms, cost_choice, time)
         CommR_obj.train()
         rewrite_comms = CommR_obj.get_rewrite()
         # DA AGGIUNGERE CHE FARE CON LE RIPETIZIONI DEI NODI IN COMUNITà DIVERSE  --> LASCIARE COSì

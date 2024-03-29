@@ -155,6 +155,22 @@ def generate_outer_boundary(graph, com_nodes, max_size=20):
     return outer_nodes if len(outer_nodes) <= max_size else outer_nodes[:max_size]
 
 
+def count_folders_starting_with_time(path):
+    # Initialize a counter for the folders starting with 't'
+    count = 0
+
+    # Get a list of all items in the specified path
+    items = os.listdir(path)
+
+    # Iterate through the items
+    for item in items:
+        # Check if the item is a directory and starts with 't'
+        if os.path.isdir(os.path.join(path, item)) and item.startswith('time'):
+            count += 1
+
+    return count
+
+
 def assign_free_gpus(threshold_vram_usage=1500, max_gpus=2, wait=False, sleep_time=10):
     """
     Assigns free gpus to the current process via the CUDA_AVAILABLE_DEVICES env variable
