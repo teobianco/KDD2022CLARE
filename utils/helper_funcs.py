@@ -6,10 +6,13 @@ import os
 import subprocess
 import time
 
+# Function assign_free_gpus() is taken from https://gist.github.com/afspies/7e211b83ca5a8902849b05ded9a10696
+
 
 def split_communities(communities, n_train, n_val=0, already_train__test=False, dataset='amazon', time=0, mapping=None):
-    r"""Randomly split all communities into train set, validation set, and test set"""
-    if already_train__test:
+    """Split all communities into train set, validation set, and test set: if already splitted just load them from files
+     otherwise split them randomly"""
+    if already_train__test:  # Load from files
         train_val_comms = []
         test_comms = []
         train_path = f'./dataset/{dataset}/time_{time}/train_set.txt'
@@ -29,7 +32,7 @@ def split_communities(communities, n_train, n_val=0, already_train__test=False, 
         np.random.shuffle(idxes)
         val_comms = [train_val_comms[idx] for idx in idxes[:n_val]]
         train_comms = [train_val_comms[idx] for idx in idxes[n_val:]]
-    else:
+    else:  # Random split
         idxes = list(range(len(communities)))
         np.random.shuffle(idxes)
 
@@ -155,6 +158,7 @@ def generate_outer_boundary(graph, com_nodes, max_size=20):
     return outer_nodes if len(outer_nodes) <= max_size else outer_nodes[:max_size]
 
 
+# This function simply calculate number of timesteps each dynamic graph is composed of
 def count_folders_starting_with_time(path):
     # Initialize a counter for the folders starting with 't'
     count = 0

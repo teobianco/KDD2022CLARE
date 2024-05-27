@@ -43,7 +43,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_train", type=int, help="pred size", default=90)
     parser.add_argument("--num_val", type=int, help="pred size", default=10)
     parser.add_argument("--already_train_test", type=bool, help="If the train and test communities are already defined", default=True)
-    parser.add_argument("--multiplier", type=float, help="multiplier", default=1.0)
+    parser.add_argument("--multiplier", type=float, help="Multiplier to number of community to predict (default is same number a training communities)", default=1.0)
 
     # Community Locator related
     #   --GNNEncoder Setting
@@ -78,6 +78,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     seed_all(args.seed)
+    print('Memory is ', args.memory)
 
     # If run on GPU, we need to assign free GPUs
     if args.device == "cuda:0":
@@ -94,10 +95,10 @@ if __name__ == "__main__":
     j_list = []
     nmi_list = []
 
+    # Compute the number of timesteps
     time_len = count_folders_starting_with_time(f"./dataset/{args.dataset}/")
     for time in range(time_len):
         print(f'## Start Timestep {time} ...')
-        # args.writer_dir = f"ckpts/{args.dataset}/{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         args.writer_dir = f"ckpts/{args.dataset}/{time}"
         if not os.path.exists(args.writer_dir):
             os.mkdir(args.writer_dir)
@@ -109,7 +110,6 @@ if __name__ == "__main__":
         num_node, num_edge, num_community, graph_data, nx_graph, communities, mapping = prepare_data(args.dataset, time)
         print(f"Finish loading data: {graph_data}\n")
         train_comms, val_comms, test_comms = split_communities(communities, args.num_train, args.num_val, args.already_train_test, args.dataset, time, mapping)
-        # DEVO SCRIVERE QUELLA NUOVA PENSANDO A COME ESTRARRE VAL_COMMS
         print(f"Split dataset: #Train {len(train_comms)}, #Val {len(val_comms)}, #Test {len(test_comms)}\n")
 
         ##########################################################
@@ -130,8 +130,6 @@ if __name__ == "__main__":
         CommR_obj = CommRewriting(args, nx_graph, feat_mat, train_comms, val_comms, pred_comms, cost_choice, time)
         CommR_obj.train()
         rewrite_comms = CommR_obj.get_rewrite()
-        # DA AGGIUNGERE CHE FARE CON LE RIPETIZIONI DEI NODI IN COMUNITà DIVERSE  --> LASCIARE COSì
-        # CAPIRE SE ELIMINARE NODI CHE SONO NEL TRAIN SET  --> FATTO, PROVARE SE FUNZIONA
         f1, jaccard, onmi = eval_scores(rewrite_comms, test_comms, train_comms, val_comms, tmp_print=True)
         f_list.append(f1)
         j_list.append(jaccard)
