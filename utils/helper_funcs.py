@@ -116,6 +116,37 @@ def prepare_locator_train_data(node_list, data: Data, max_size=25, num_hop=2):
     return batch, subg_batch
 
 
+def new_prepare_locator_train_data(node_list, data: Data, max_size=25, num_hop=2):
+    r"""Generate batch data for Community Locator training. For each node,
+    extract its ego-net and generate a sub-ego-net"""
+    candidate_communities = []
+
+    num_nodes = data.x.size(0)
+
+    for node in node_list:
+        node_set, _, _, _ = k_hop_subgraph(node_idx=node, num_hops=num_hop, edge_index=data.edge_index,
+                                           num_nodes=num_nodes)
+
+        if len(node_set) > max_size:
+            node_set = node_set[torch.randperm(node_set.shape[0])][:max_size]
+            node_set = torch.unique(torch.cat([torch.LongTensor([node]), torch.flatten(node_set)]))
+
+        node_list = node_set.detach().cpu().numpy().tolist()
+        seed_idx = node_list.index(node)
+
+        if seed_idx != 0:
+            node_list[seed_idx], node_list[0] = node_list[0], node_list[seed_idx]
+
+        # Hint: important!!!
+        #  We must ensure all the first node is the centric node
+        assert node_list[0] == node
+        # print(node, node_list)
+
+        candidate_communities.append(node_list)
+
+    return candidate_communities
+
+
 def generate_ego_net(graph, start_node, k=1, max_size=15, choice="subgraph"):
     """Generate **k** ego-net"""
     q = [start_node]

@@ -76,9 +76,13 @@ if __name__ == "__main__":
     # Dynamize RL
     parser.add_argument("--memory", type=bool, help="In Rewriter keep memory of past timestep in initialization", default=False)
 
+    # CLARE embedding or other method's
+    parser.add_argument("--method", type=str, help="Which method to use to generate community embeddings", default='CLARE')
+
     args = parser.parse_args()
     seed_all(args.seed)
-    print('Memory is ', args.memory)
+    print('Dynamic RL is', args.memory)
+    print('Embedding method is', args.method)
 
     # If run on GPU, we need to assign free GPUs
     if args.device == "cuda:0":
@@ -88,21 +92,26 @@ if __name__ == "__main__":
     print('##  Starting Time:', datetime.now().strftime("%Y-%m-%d %H:%M:%S"), flush=True)
     print(args)
 
-    if not os.path.exists(f"ckpts/{args.dataset}"):
-        os.mkdir(f"ckpts/{args.dataset}")
+    if args.memory:
+        path_name = f"ckpts/{args.dataset}_{args.method}_dynRL"
+    else:
+        path_name = f"ckpts/{args.dataset}_{args.method}"
+    if not os.path.exists(path_name):
+        os.mkdir(path_name)
 
     f_list = []
     j_list = []
     nmi_list = []
 
+    args.comm_max_size = 20 if args.dataset.startswith("lj") else 12
+
     # Compute the number of timesteps
     time_len = count_folders_starting_with_time(f"./dataset/{args.dataset}/")
     for time in range(time_len):
         print(f'## Start Timestep {time} ...')
-        args.writer_dir = f"ckpts/{args.dataset}/{time}"
+        args.writer_dir = os.path.join(path_name, f"{time}")
         if not os.path.exists(args.writer_dir):
             os.mkdir(args.writer_dir)
-        args.comm_max_size = 20 if args.dataset.startswith("lj") else 12
 
         ##########################################################
         ################### Step 1 Load Data #####################
@@ -115,8 +124,9 @@ if __name__ == "__main__":
         ##########################################################
         ################### Step 2 Train Locator##################
         ##########################################################
-        CommM_obj = CommMatching(args, graph_data, train_comms, val_comms, device=torch.device(args.device))
-        CommM_obj.train()
+        CommM_obj = CommMatching(args, graph_data, train_comms, val_comms, time, device=torch.device(args.device), mapping=mapping)
+        if args.method == 'CLARE':
+            CommM_obj.train()
         pred_comms = CommM_obj.predict_community(nx_graph, args.comm_max_size)
         f1, jaccard, onmi = eval_scores(pred_comms, test_comms, train_comms, val_comms, tmp_print=True)
         metrics_string = '_'.join([f'{x:0.4f}' for x in [f1, jaccard, onmi]])

@@ -4,14 +4,15 @@ import torch
 import numpy as np
 import torch.optim as optim
 import time
-from utils import prepare_locator_train_data, generate_ego_net
+from utils import prepare_locator_train_data, generate_ego_net, new_prepare_locator_train_data
 from torch_geometric.data import Data, Batch
 from torch_geometric.utils import k_hop_subgraph, subgraph
 import math
+import pandas as pd
 
 
 class CommMatching:
-    def __init__(self, args, graph_data, train_communities, val_communities, device=torch.device("cuda:0")):
+    def __init__(self, args, graph_data, train_communities, val_communities, time, device=torch.device("cuda:0"), mapping=None):
         """Community Locator Object
 
         :param graph_data: network in `PyG.Data` format
@@ -29,6 +30,8 @@ class CommMatching:
 
         self.num_node, input_dim = graph_data.x.size(0), graph_data.x.size(1)
         self.device = device
+        self.time = time
+        self.mapping = mapping
 
         # GNN Encoder core setting: GNN-type, hidden dimension, and number of layers
         self.gnn_encoder = GNNEncoder(input_dim, args.hidden_dim, args.output_dim, args.n_layers,
@@ -91,41 +94,91 @@ class CommMatching:
         node_emb, _ = self.gnn_encoder(batch.x, batch.edge_index, batch.batch, return_node=True)
         return node_emb
 
-    def generate_target_community_emb(self, comms):
-        batch = []
-        self.gnn_encoder.eval()
-        for community in comms:
-            edge_index, _ = subgraph(community, self.graph_data.edge_index, relabel_nodes=True, num_nodes=self.num_node)
-            node_x = self.graph_data.x[community]  # node features
-            g_data = Data(x=node_x, edge_index=edge_index)
-            batch.append(g_data)
-        batch = Batch().from_data_list(batch).to(self.device)
+    def generate_target_community_emb(self, comms, emb=None):
+        if self.args.method == 'CLARE':
+            batch = []
+            self.gnn_encoder.eval()
+            for community in comms:
+                edge_index, _ = subgraph(community, self.graph_data.edge_index, relabel_nodes=True, num_nodes=self.num_node)
+                node_x = self.graph_data.x[community]  # node features
+                g_data = Data(x=node_x, edge_index=edge_index)
+                batch.append(g_data)
+            batch = Batch().from_data_list(batch).to(self.device)
 
-        _, comms_emb = self.gnn_encoder(batch.x, batch.edge_index, batch.batch)
+            _, comms_emb = self.gnn_encoder(batch.x, batch.edge_index, batch.batch)
+        else:
+            comm_embedding_list = []
+            for community in comms:
+                # Load embeddings of node in the commuity
+                comm_embedding = self.get_community_embedding(community, emb)
+                # Sum embedding of node in the community
+                comm_embedding_list.append(comm_embedding)
+            # Stack vertically the embeddings of the communities
+            comms_emb = torch.stack(comm_embedding_list)
+            comms_emb.to(self.device)
         return comms_emb
 
     def predict_community(self, nx_graph, comm_max_size=20, k=2):
-        self.gnn_encoder.eval()
+        if self.args.method == 'CLARE':
+            self.gnn_encoder.eval()
 
-        # Step 1 generate embeddings
-        #      1.1 generate training communities' embedding
-        query_emb = self.generate_target_community_emb(self.train_comms + self.val_comms)
-        query_emb = query_emb.detach().cpu().numpy()
+            # Step 1 generate embeddings
+            #      1.1 generate training communities' embedding
+            query_emb = self.generate_target_community_emb(self.train_comms + self.val_comms)
+            query_emb = query_emb.detach().cpu().numpy()
 
-        #      1.2 generate all candidate communities' (k-ego net of each node) embedding
-        batch_size = 4096  # you can set a larger one for faster computation
-        batch_len = math.ceil(self.num_node / batch_size)
-        all_emb = np.zeros((self.num_node, self.args.output_dim))
-        for i in range(batch_len):
-            minn, maxx = i * batch_size, min((i + 1) * batch_size, self.num_node)
+            #      1.2 generate all candidate communities' (k-ego net of each node) embedding
+            batch_size = 4096  # you can set a larger one for faster computation
+            batch_len = math.ceil(self.num_node / batch_size)
+            all_emb = np.zeros((self.num_node, self.args.output_dim))
+            for i in range(batch_len):
+                minn, maxx = i * batch_size, min((i + 1) * batch_size, self.num_node)
 
-            batch, _ = prepare_locator_train_data(list(range(minn, maxx)), data=self.graph_data, max_size=20, num_hop=k)
-            batch = batch.to(self.device)
-            _, comms_emb = self.gnn_encoder(batch.x, batch.edge_index, batch.batch)
-            comms_emb = comms_emb.detach().cpu().numpy()
+                batch, _ = prepare_locator_train_data(list(range(minn, maxx)), data=self.graph_data, max_size=20, num_hop=k)
+                batch = batch.to(self.device)
+                _, comms_emb = self.gnn_encoder(batch.x, batch.edge_index, batch.batch)
+                comms_emb = comms_emb.detach().cpu().numpy()
 
-            all_emb[minn:maxx, :] = comms_emb
-            print(f"***Generate nodes embedding from idx {minn} to {maxx}")
+                all_emb[minn:maxx, :] = comms_emb
+                print(f"***Generate nodes embedding from idx {minn} to {maxx}")
+
+        else:
+            emb = pd.read_csv(f'./dataset/{self.args.dataset}/embedding/{self.args.method}/graph{self.time}.csv',
+                              sep='\t', index_col=0)
+            # nodes_set = pd.read_csv(os.path.join(base_path, node_file), names=['node'])
+            active_nodes = self.get_active_nodes()
+            # active_filter = nodes_set.loc[active_nodes, 'node'].tolist()
+            emb = emb.reindex(index=active_nodes)
+
+            # Cambia i valori degli indici utilizzando il mapping
+            emb.index = emb.index.map(self.mapping.get)
+
+            # Se desideri sostituire gli indici nel DataFrame originale, usa set_index
+            # df.set_index(df.index.map(mappatura.get), inplace=True)
+
+            # Step 1 generate embeddings
+            #      1.1 generate training communities' embedding
+            query_emb = self.generate_target_community_emb(self.train_comms + self.val_comms, emb)
+            query_emb = query_emb.detach().cpu().numpy()
+
+            #      1.2 generate all candidate communities' (k-ego net of each node) embedding
+            batch_size = 4096  # you can set a larger one for faster computation
+            batch_len = math.ceil(self.num_node / batch_size)
+            all_emb = np.zeros((self.num_node, query_emb.shape[1]))
+            for i in range(batch_len):
+                minn, maxx = i * batch_size, min((i + 1) * batch_size, self.num_node)
+                cand_communities = new_prepare_locator_train_data(list(range(minn, maxx)), data=self.graph_data,
+                                                                  max_size=20, num_hop=k)
+                comms_emb = self.generate_target_community_emb(cand_communities, emb)
+                # comm_embedding_list = []
+                # for community in cand_communities:
+                #     comm_embedding = self.get_community_embedding(community, emb)
+                #     comm_embedding_list.append(comm_embedding)
+                # comms_emb = torch.cat(comm_embedding_list, dim=0)
+                comms_emb = comms_emb.detach().cpu().numpy()
+
+                all_emb[minn:maxx, :] = comms_emb
+                print(f"***Generate nodes embedding from idx {minn} to {maxx}")
 
         # Step 2 matching
         print(f"\nStart Matching ... ")
@@ -161,3 +214,20 @@ class CommMatching:
         print(f"[Generate] Pred size {len(pred_comms)}, Avg Length {np.mean(lengths):.04f}\n")
 
         return pred_comms
+
+    def get_active_nodes(self):
+        file_path = f'./dataset/{self.args.dataset}/communities/communities{self.time}.txt'
+        active_nodes = []
+        with open(file_path, 'r') as file:
+            for line in file:
+                node, _ = list(map(int, line.split()))
+                active_nodes.append(node)
+        return active_nodes
+
+    def get_community_embedding(self, comm, emb):
+        # Load embeddings of node in the commuity
+        comm_embedding = emb.loc[comm]
+        # Sum embedding of node in the community
+        comm_embedding = torch.tensor(comm_embedding.values, dtype=torch.float).to(self.device)
+        comm_embedding = torch.sum(comm_embedding, dim=0)
+        return comm_embedding
