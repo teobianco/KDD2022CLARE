@@ -109,7 +109,7 @@ class CommMatching:
         else:
             comm_embedding_list = []
             for community in comms:
-                # Load embeddings of node in the commuity
+                # Load embeddings of node in the community
                 comm_embedding = self.get_community_embedding(community, emb)
                 # Sum embedding of node in the community
                 comm_embedding_list.append(comm_embedding)
@@ -170,11 +170,6 @@ class CommMatching:
                 cand_communities = new_prepare_locator_train_data(list(range(minn, maxx)), data=self.graph_data,
                                                                   max_size=20, num_hop=k)
                 comms_emb = self.generate_target_community_emb(cand_communities, emb)
-                # comm_embedding_list = []
-                # for community in cand_communities:
-                #     comm_embedding = self.get_community_embedding(community, emb)
-                #     comm_embedding_list.append(comm_embedding)
-                # comms_emb = torch.cat(comm_embedding_list, dim=0)
                 comms_emb = comms_emb.detach().cpu().numpy()
 
                 all_emb[minn:maxx, :] = comms_emb
@@ -225,7 +220,7 @@ class CommMatching:
         return active_nodes
 
     def get_community_embedding(self, comm, emb):
-        # Load embeddings of node in the commuity
+        # Load embeddings of node in the community
         comm_embedding = emb.loc[comm]
         # Sum embedding of node in the community
         comm_embedding = torch.tensor(comm_embedding.values, dtype=torch.float).to(self.device)

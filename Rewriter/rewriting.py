@@ -51,7 +51,6 @@ class CommRewriting:
         if self.args.memory:
             if self.time > 0:
                 path = self.args.writer_dir.rsplit('/', 1)[0] + '/' + str(self.time - 1)
-                # path = self.args.writer_dir[:-1] + str(self.time - 1)
                 if os.path.exists(path + f"/commr_eval_best.pt"):
                     self.load_net(path + f"/commr_eval_best.pt")
                     # print(f"Load net from {path + f'/commr_eval_best.pt'} at Epoch{self.best_epoch}")
@@ -143,7 +142,6 @@ class CommRewriting:
                 expand_rewards = (expand_rewards - np.mean(expand_rewards)) / (np.std(expand_rewards)+1e-9)
                 self.agent.learn(torch.stack(expand_log_probs), torch.from_numpy(expand_rewards), cal_type=EXPAND)
 
-            # TODO: Validation on val-set and save the best model
             if (epoch + 1) % 20 == 0:
                 f, j, nmi = eval_scores(val_data, self.valid_comms, train_comms=None, val_comms=None, validation_flag=True)
                 rewrite_val = self.rewrite_community(valid=True, val_pred=val_data)
@@ -156,7 +154,6 @@ class CommRewriting:
                         best_f = new_f - f
                         self.best_epoch = epoch
                         self.save_net(self.args.writer_dir + f"/commr_eval_best.pt")
-        # TODO: Save model
         self.save_net()
 
     def get_rewrite(self, filename=None):

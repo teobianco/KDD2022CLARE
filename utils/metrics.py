@@ -24,7 +24,7 @@ def eval_scores(pred_comms, true_comms, train_comms, val_comms, tmp_print=False,
         val_set = {node for com in val_comms for node in com}
         # Create a new set which is union of these one
         train_val_set = train_set | val_set
-        # Erase train_comms nodes from pred_comms
+        # Erase train_comms nodes from pred_comms (needed because CLARE produces overlapping communities)
         for comm in pred_comms:
             for node in comm:
                 if node in train_val_set:
