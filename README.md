@@ -28,7 +28,7 @@ As already said there are 2 main innovations of DynCLARE w.r.t. CLARE: **Dynamic
 
 Differently from CLARE, which is static, DynCLARE does semi-supervised community detection on **dynamic graphs**. It can perform this task in two ways:
 - by simply performing CLARE algorithm in each timestep separately (**naive** way)
-- by performing CLARE algorithm in each timestep separately, but inizializing RL learnable weigths to those of previous timestep, thus preserving memory of previous past community structures (**structured** way)
+- by performing CLARE algorithm in each timestep separately, but inizializing RL learnable weigths to those of previous timestep, thus preserving memory of previous communities structures (**structured** way)
 
 
 ### Other Embedding Methods
@@ -81,13 +81,13 @@ If you want to run on your **own datasets**, you have to convert your own data i
 Execute the `main.py` file
 
 ```
-python main.py --dataset=amazon  
+python main.py --dataset=Amazon_setting1  
 ```
 
 Main arguments already in CLARE (for more argument options, please refer to `main.py`):
 
 ```
---dataset [amazon, dblp, lj, amazon_dblp, dblp_amazon, dblp_lj, lj_dblp]: the dataset to run
+--dataset: the dataset to run
 --num_pred / num_train / num_val: the numbers for prediction, training, and validation
 --locator_epoch: number of epochs to train Community Locator (default setting 30)
 --n_layers: ego-net dimensions & number of GNN layers (default 2)
