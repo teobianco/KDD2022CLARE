@@ -103,7 +103,7 @@ if __name__ == "__main__":
     j_list = []
     nmi_list = []
 
-    args.comm_max_size = 20 if args.dataset.startswith("lj") else 12
+    args.comm_max_size = 12
 
     # Compute the number of timesteps
     time_len = count_folders_starting_with_time(f"./dataset/{args.dataset}/")
@@ -118,11 +118,12 @@ if __name__ == "__main__":
         ##########################################################
         num_node, num_edge, num_community, graph_data, nx_graph, communities, mapping = prepare_data(args.dataset, time)
         print(f"Finish loading data: {graph_data}\n")
+        # Split into train, val and test sets
         train_comms, val_comms, test_comms = split_communities(communities, args.num_train, args.num_val, args.already_train_test, args.dataset, time, mapping)
         print(f"Split dataset: #Train {len(train_comms)}, #Val {len(val_comms)}, #Test {len(test_comms)}\n")
 
         ##########################################################
-        ################### Step 2 Train Locator##################
+        ################ Step 2 Community Locator ################
         ##########################################################
         CommM_obj = CommMatching(args, graph_data, train_comms, val_comms, time, device=torch.device(args.device), mapping=mapping)
         if args.method == 'CLARE':
@@ -133,7 +134,7 @@ if __name__ == "__main__":
         write2file(pred_comms, args.writer_dir + "/CommM_" + metrics_string + '.txt')
 
         ##########################################################
-        ################### Step 3 Train Rewriter#################
+        ################ Step 3 Community Rewriter ###############
         ##########################################################
         cost_choice = "f1"  # or you can change to "jaccard"
         feat_mat = CommM_obj.generate_all_node_emb().detach().cpu().numpy()  # all nodes' embedding
@@ -147,6 +148,7 @@ if __name__ == "__main__":
         metrics_string = '_'.join([f'{x:0.4f}' for x in [f1, jaccard, onmi]])
         write2file(rewrite_comms, args.writer_dir + f"/CommR_{cost_choice}_" + metrics_string + '.txt')
 
+    # At the end of all timesteps, print average value and std of F1, Jaccard and ONMI
     print(f'Mean F1: {np.mean(f_list)}')
     print(f'Std F1: {np.std(f_list)}')
     print(f'Mean Jaccard: {np.mean(j_list)}')
